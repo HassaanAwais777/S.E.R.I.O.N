@@ -1,0 +1,57 @@
+# ============================================================
+# Tenant Registry — tenants.yaml
+# Har company ka ek entry hai yahan.
+# Company ka data completely isolated hai — alag Neo4j database.
+#
+# Fields:
+#   company_id   : unique slug (lowercase, no spaces)
+#   name         : display name
+#   pg_url       : source Postgres connection URL
+#   neo4j_db     : target Neo4j database name (isolated per company)
+#   mapping_file : path to this company's mapping.yaml
+#   departments  : list of department names (for graph labels)
+#   active       : whether to include in sync runs
+# ============================================================
+
+tenants:
+
+  - company_id: company_acme
+    name: "Acme Corporation"
+    pg_url: "postgresql://erp_user:erp_pass@localhost:5432/erp_acme"
+    neo4j_db: "company_acme"
+    mapping_file: "config/tenants/company_acme/mapping.yaml"
+    departments:
+      - Finance
+      - HR
+      - Sales
+      - Procurement
+    active: true
+
+  - company_id: company_beta
+    name: "Beta Logistics Ltd"
+    pg_url: "postgresql://erp_user:erp_pass@localhost:5432/erp_beta"
+    neo4j_db: "company_beta"
+    mapping_file: "config/tenants/company_beta/mapping.yaml"
+    departments:
+      - Finance
+      - Operations
+      - Logistics
+      - Marketing
+    active: true
+
+  - company_id: company_gamma
+    name: "Gamma Tech Solutions"
+    pg_url: "postgresql://erp_user:erp_pass@localhost:5432/erp_gamma"
+    neo4j_db: "company_gamma"
+    mapping_file: "config/tenants/company_gamma/mapping.yaml"
+    departments:
+      - Engineering
+      - Sales
+      - Support
+    active: true
+
+# Neo4j connection (shared server, isolated databases)
+neo4j:
+  uri: "bolt://localhost:7687"
+  user: "neo4j"
+  password: "password"

@@ -1,0 +1,9 @@
+psycopg2-binary>=2.9.9
+neo4j>=5.18.0
+pyyaml>=6.0.1
+python-dotenv>=1.0.1
+rich>=13.7.1
+click>=8.1.7
+pydantic>=2.6.4
+tenacity>=8.2.3
+concurrent-log-handler>=0.9.25

@@ -1,0 +1,94 @@
+version: "3.9"
+
+services:
+
+  # ─── PostgreSQL (ERP source) ───────────────────────────────
+  postgres:
+    image: postgres:16
+    container_name: erp_postgres
+    environment:
+      POSTGRES_USER: erp_user
+      POSTGRES_PASSWORD: erp_pass
+      POSTGRES_DB: erp_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./scripts/init_erp_schema.sql:/docker-entrypoint-initdb.d/init.sql
+    command: >
+      postgres
+        -c wal_level=logical
+        -c max_replication_slots=4
+        -c max_wal_senders=4
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp_user -d erp_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ─── Neo4j (graph target) ──────────────────────────────────
+  neo4j:
+    image: neo4j:5.18-community
+    container_name: erp_neo4j
+    environment:
+      NEO4J_AUTH: neo4j/password
+      NEO4J_PLUGINS: '["graph-data-science"]'
+      NEO4J_dbms_memory_heap_initial__size: 2G
+      NEO4J_dbms_memory_heap_max__size: 4G
+      NEO4J_dbms_memory_pagecache_size: 2G
+    ports:
+      - "7474:7474"   # Browser UI
+      - "7687:7687"   # Bolt
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7474"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+
+  # ─── erp2neo4j ETL ────────────────────────────────────────
+  etl:
+    build: .
+    container_name: erp2neo4j_etl
+    depends_on:
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    environment:
+      PG_URL: postgresql://erp_user:erp_pass@postgres:5432/erp_db
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: password
+      BATCH_SIZE: "5000"
+      NUM_WORKERS: "8"
+      CHUNK_SIZE: "100000"
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+    command: python -m erp2neo4j.etl.pipeline --mapping config/mapping.yaml
+
+  # ─── CDC Sync (continuous) ────────────────────────────────
+  cdc:
+    build: .
+    container_name: erp2neo4j_cdc
+    depends_on:
+      - etl
+    environment:
+      PG_URL: postgresql://erp_user:erp_pass@postgres:5432/erp_db
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: password
+      CDC_POLL_INTERVAL: "10"
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+    restart: unless-stopped
+    command: python -m erp2neo4j.sync.cdc_sync --mapping config/mapping.yaml
+
+volumes:
+  pg_data:
+  neo4j_data:
+  neo4j_logs:
